@@ -4,6 +4,26 @@
 
 * Introduction
 
+* REPL
+
+This is a minimal ``REPL'' (笑).
+
+#+BEGIN_SRC c++ :tangle repl.cc
+#include <string>
+#include <iostream>
+
+int main() {
+  std::cout << "Enter something:\n> ";
+  std::string input;
+  while (std::getline(std::cin, input)) {
+    std::cout << input << std::endl;
+    std::cout << "Enter something:\n> ";
+  }
+  std::cout << std::endl;
+  return 0;
+}
+#+END_SRC
+
 * Infrastructure
 
 ** Build System
@@ -34,7 +54,7 @@ endif()
 This is an example program, to test compiling with the build system.
 It prints out “Hello, world!”.
 
-#+BEGIN_SRC c++ :tangle main.cc
+#+BEGIN_SRC c++ :tangle example/main.cc
 #include <iostream>
 
 int main()
@@ -47,7 +67,13 @@ int main()
 To build it, we need to add it to the list of exectuables in our CMake file:
 
 #+BEGIN_SRC cmake :noweb-ref executables
-add_executable(hello main.cc)
+add_executable(hello example/main.cc)
+#+END_SRC
+
+*** Build the ``REPL'' program
+
+#+BEGIN_SRC cmake :noweb-ref executables
+add_executable(repl repl.cc)
 #+END_SRC
 
 *** Setting up a build

@@ -4,22 +4,106 @@
 
 * Introduction
 
-* REPL
+* REPL (笑)
 
-This is a minimal ``REPL'' (笑).
-
+First some imports:
 #+BEGIN_SRC c++ :tangle repl.cc
 #include <string>
 #include <iostream>
+#include <utility>
+#+END_SRC
 
-int main() {
-  std::cout << "Enter something:\n> ";
-  std::string input;
-  while (std::getline(std::cin, input)) {
-    std::cout << input << std::endl;
-    std::cout << "Enter something:\n> ";
+Although the REPL is conceptually a very simple loop, to make it a bit nicer
+let's abstract the input, output, and processing steps into something like a
+generator:
+
+#+BEGIN_SRC c++ :tangle repl.cc
+struct show_prompt {
+  show_prompt(std::ostream &sout, std::string prompt_string)
+    : sout_{&sout}, prompt_string_{std::move(prompt_string)} {}
+  void operator()() { *sout_ << prompt_string_; }
+  explicit operator bool() { return !!*sout_; }
+
+private:
+  std::ostream *sout_;
+  std::string prompt_string_;
+};
+
+struct read_input {
+  read_input(std::istream &sin) : sin_{&sin}, line_{} {}
+
+  std::string operator()() {
+    std::getline(*sin_, line_);
+    return line_;
   }
-  std::cout << std::endl;
+
+  explicit operator bool() { return !!*sin_; }
+
+private:
+  std::istream *sin_;
+  std::string line_;
+};
+
+struct print_string {
+  print_string(std::ostream &sout) : sout_{&sout} {}
+  void operator()(std::string s) { *sout_ << s << std::endl; }
+  explicit operator bool() { return !!*sout_; }
+
+private:
+  std::ostream *sout_;
+};
+#+END_SRC
+
+Then we will want some way to combine them:
+#+BEGIN_SRC c++ :tangle repl.cc
+template <typename F1, typename F2>
+struct sequencer {
+  sequencer(F1 && f1, F2 && f2)
+    : f1_{std::forward<F1>(f1)}, f2_{std::forward<F2>(f2)} {}
+  void operator()() {f1_(); f2_();}
+  explicit operator bool() { return !!f1_ && !!f2_; }
+
+private:
+  F1 f1_;
+  F2 f2_;
+};
+
+template <typename F1, typename F2>
+auto seq(F1 && f1, F2 && f2) {
+  return sequencer<F1,F2>(std::forward<F1>(f1), std::forward<F2>(f2));
+}
+
+
+template <typename F1, typename F2>
+struct binder {
+  binder(F1 && f1, F2 && f2)
+    : f1_{std::forward<F1>(f1)}, f2_{std::forward<F2>(f2)} {}
+  auto operator()() { f2_(f1_()); }
+  explicit operator bool() { return !!f1_ && !!f2_; }
+
+private:
+  F1 f1_;
+  F2 f2_;
+};
+
+template <typename F1, typename F2>
+auto bind(F1 && f1, F2 && f2) {
+  return binder<F1,F2>(std::forward<F1>(f1), std::forward<F2>(f2));
+}
+#+END_SRC
+
+These are kind of like a very ad-hoc version of monadic operations in the IO
+monad in Haskell. At some point it may be beneficial to use a real functional programming library,
+but for now it serves our purpose.
+
+Finally we can build the ``REPL'' (it's more like a ``RPL'') out of these pieces:
+
+#+BEGIN_SRC c++ :tangle repl.cc
+int main() {
+  auto loop = seq(show_prompt{std::cout, "Enter something\n> "},
+                  bind(read_input{std::cin},
+                       print_string{std::cout}));
+  while(loop) loop();
   return 0;
 }
 #+END_SRC
